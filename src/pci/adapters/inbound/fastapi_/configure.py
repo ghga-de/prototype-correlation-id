@@ -12,22 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""Utils to configure the FastAPI app"""
 
-"""Config Parameter Modeling and Parsing."""
+from fastapi import FastAPI
+from ghga_service_commons.api import configure_app
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from ghga_service_commons.api import ApiConfigBase
-from hexkit.config import config_from_yaml
-
-from .models import SupportedLanguages
-
-
-# Please adapt config prefix and remove unnecessary config bases:
-@config_from_yaml(prefix="my_microservice")
-class Config(ApiConfigBase):
-    """Config parameters and their defaults."""
-
-    service_name: str = "my_microservice"  # Please adapt
-    language: SupportedLanguages = "Croatian"
+from pci.adapters.inbound.fastapi_.routes import router
+from pci.adapters.inbound.fastapi_.utils import correlation_id_middleware
+from pci.config import Config
 
 
-CONFIG = Config()
+def get_configured_app(*, config: Config) -> FastAPI:
+    """Create and configure a REST API application."""
+    app = FastAPI()
+    app.include_router(router)
+    configure_app(app, config=config)
+
+    # move to "configure app"
+    app.add_middleware(BaseHTTPMiddleware, dispatch=correlation_id_middleware)
+
+    return app

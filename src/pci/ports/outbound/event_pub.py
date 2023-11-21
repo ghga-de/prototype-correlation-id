@@ -12,22 +12,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""Interface for broadcasting events to other services."""
 
-"""Entrypoint of the package."""
+from abc import ABC, abstractmethod
 
-import asyncio
-
-from ghga_service_commons.api import run_server
-
-from .api.main import app  # noqa: F401 pylint: disable=unused-import
-from .config import CONFIG, Config
+from ghga_event_schemas import pydantic_ as event_schemas
 
 
-def run(config: Config = CONFIG):
-    """Run the service."""
-    # Please adapt to package name
-    asyncio.run(run_server(app="my_microservice.__main__:app", config=config))
+class EventPublisherPort(ABC):
+    """A port through which service-internal events are communicated with the outside."""
 
-
-if __name__ == "__main__":
-    run()
+    @abstractmethod
+    async def non_staged_file_requested(
+        self, *, event: event_schemas.NonStagedFileRequested
+    ):
+        """Publish an event communicating that there was a request for a file that has
+        not yet been staged.
+        """

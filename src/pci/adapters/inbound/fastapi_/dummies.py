@@ -12,5 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""A collection of dependency dummies that are used in view definitions but need to be
+replaced at runtime by actual dependencies.
+"""
 
-"""Subpackage defining a RESTful API."""
+from typing import Annotated
+
+from fastapi import Depends
+from ghga_service_commons.api.di import DependencyDummy
+
+from pci.ports.inbound.data_repository import DataRepositoryPort
+
+data_repository_port = DependencyDummy("data_repository_port")
+DataRepositoryDummy = Annotated[DataRepositoryPort, Depends(data_repository_port)]

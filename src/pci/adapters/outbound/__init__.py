@@ -13,12 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-"""Used to define the location of the main FastAPI app object."""
-
-from fastapi import FastAPI
-
-from pci.adapters.inbound.fastapi_.routes import router
-
-app = FastAPI()
-app.include_router(router)

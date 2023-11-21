@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test dummy."""
-
-from my_microservice.core.greeting import generate_greeting
+"""Entrypoint of the package"""
 
 
-def test_dummy():
-    """A very simple example test."""
-    greeting = generate_greeting("monde", "French", True)
-    assert greeting.message == "Salut monde!"
+from pci.cli import cli
+
+if __name__ == "__main__":
+    cli()
