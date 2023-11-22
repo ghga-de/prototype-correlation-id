@@ -15,6 +15,7 @@
 #
 """Inbound adapter for the event subscriber"""
 import logging
+from uuid import uuid4
 
 from ghga_event_schemas.validation import (
     EventSchemaValidationError,
@@ -25,6 +26,7 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from pci.adapters.inbound.fastapi_.utils import is_valid_correlation_id
 from pci.context_vars import set_correlation_id
 from pci.models import NonStagedFileRequested
 from pci.ports.inbound.data_repository import DataRepositoryPort
@@ -62,12 +64,20 @@ class EventSubTranslator(EventSubscriberProtocol):
                 payload=payload, schema=NonStagedFileRequested
             )
 
-            async with set_correlation_id(validated_payload.correlation_id):
-                log.info("Set correlation ID to %s", validated_payload.correlation_id)
+            correlation_id = validated_payload.correlation_id
+            if not is_valid_correlation_id(correlation_id):
+                correlation_id = str(uuid4())
+                log.warning(
+                    "Generated new correlation ID for NonStagedFileRequested event: %s",
+                    correlation_id,
+                )
+
+            async with set_correlation_id(correlation_id):
+                log.info("Set context correlation ID to %s", correlation_id)
 
                 with open(validated_payload.file_id, "w", encoding="utf-8") as file:
                     file.write(
-                        f"The name of this file is {validated_payload.file_id}\n{validated_payload.correlation_id}"
+                        f"The name of this file is {validated_payload.file_id}\n{correlation_id}"
                     )
 
         except EventSchemaValidationError:
