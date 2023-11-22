@@ -15,12 +15,91 @@
 """Tests for the correlation ID."""
 import asyncio
 import os
+from functools import partial
 from tempfile import TemporaryDirectory
 
 import pytest
+from fastapi import Request
 from hexkit.providers.akafka.testutils import KafkaFixture, kafka_fixture  # noqa: F401
 
+from pci.adapters.inbound.fastapi_.utils import (
+    CORRELATION_ID_HEADER_NAME,
+    correlation_id_middleware,
+    is_valid_correlation_id,
+)
+from pci.models import NonStagedFileRequested
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
+
+
+async def replacement_middleware(request: Request, call_next, replacement_id: str):
+    """Wrapper patch for `correlation_id_middleware`."""
+    # Modify the correlation ID for testing purposes
+    headers = dict(request.scope["headers"])
+    headers[CORRELATION_ID_HEADER_NAME] = ""
+    request.scope["headers"] = [(k, v) for k, v in headers.items()]
+
+    # make sure the value is set
+    assert request.headers.get(CORRELATION_ID_HEADER_NAME) == replacement_id
+
+    # pass the request on to the real middleware function
+    return await correlation_id_middleware(request, call_next)
+
+
+@pytest.mark.parametrize("replacement_id", ["", "invalid"])
+@pytest.mark.asyncio
+async def test_rest_call_without_correlation_id(
+    joint_fixture: JointFixture,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    replacement_id: str,
+):
+    """Make sure a new ID is generated if a REST api request is received with a missing
+    or invalid correlation ID.
+    """
+    monkeypatch.setattr(
+        "pci.adapters.inbound.fastapi_.utils.correlation_id_middleware",
+        partial(replacement_middleware, replacement_id=replacement_id),
+    )
+
+    response = await joint_fixture.rest_client.get("/test.txt")
+    body = response.json()
+    assert body["correlation_id"] != replacement_id
+    assert is_valid_correlation_id(body["correlation_id"])
+
+
+@pytest.mark.parametrize("replacement_id", ["", "invalid"])
+@pytest.mark.asyncio
+async def test_event_without_correlation_id(
+    joint_fixture: JointFixture,  # noqa: F811
+    replacement_id: str,
+):
+    """Make sure a new ID is generated if an event is received with a missing
+    or invalid correlation ID.
+    """
+    event = NonStagedFileRequested(
+        file_id="test",
+        target_bucket_id="test",
+        target_object_id="test",
+        s3_endpoint_alias="test",
+        decrypted_sha256="123",
+        correlation_id=replacement_id,
+    )
+
+    # publish event with bad id
+    await joint_fixture.kafka.publish_event(
+        payload=event.model_dump(),
+        type_=joint_fixture.config.nonstaged_file_requested_type,
+        topic=joint_fixture.config.file_events_topic,
+        key="",
+    )
+    with TemporaryDirectory() as temp_dir:
+        os.chdir(temp_dir)
+        filepath = f"{temp_dir}/test"
+        await joint_fixture.event_subscriber.run(False)
+        assert os.path.exists(filepath)
+        with open(filepath, encoding="utf-8") as file:
+            correlation_id = file.readlines()[-1]
+            assert correlation_id != replacement_id
+            assert is_valid_correlation_id(correlation_id)
 
 
 @pytest.mark.asyncio
