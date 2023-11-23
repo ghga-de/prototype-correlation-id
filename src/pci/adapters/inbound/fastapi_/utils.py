@@ -30,35 +30,66 @@ CORRELATION_ID_HEADER_NAME = "X-Correlation-ID"
 log = logging.getLogger()
 
 
-def is_valid_correlation_id(correlation_id: str):
-    """Make sure the correlation ID is a valid UUID4."""
+class InvalidCorrelationIdError(RuntimeError):
+    """Raised when a correlation ID fails validation."""
+
+    def __init__(self, *, correlation_id: str):
+        message = f"Invalid correlation ID found: '{correlation_id}'"
+        super().__init__(message)
+
+
+def validate_correlation_id(correlation_id: str):
+    """Raises an error if the correlation ID is invalid.
+
+    Raises:
+        InvalidCorrelationIdError: If the correlation ID is invalid.
+    """
     try:
         UUID(correlation_id)
-        return True
-    except ValueError:
-        return False
+    except ValueError as err:
+        raise InvalidCorrelationIdError(correlation_id=correlation_id) from err
+
+
+def set_header_correlation_id(request: Request, correlation_id: str):
+    """Set the correlation ID on the request header."""
+    headers = request.headers.mutablecopy()
+    headers[CORRELATION_ID_HEADER_NAME] = correlation_id
+    request.scope.update(headers=headers.raw)
+    # delete _headers to force update
+    delattr(request, "_headers")
+    log.info("Assigned %s as header correlation ID value.", correlation_id)
+
+
+def get_validated_correlation_id(correlation_id: str) -> str:
+    """Returns existing correlation ID if valid or generates a new one if nonexistent.
+
+    Raises:
+        InvalidCorrelationIdError: If a correlation ID exists but is invalid.
+    """
+    if correlation_id:
+        validate_correlation_id(correlation_id)
+    else:
+        correlation_id = str(uuid4())
+        log.warning("Generated new correlation id: %s", correlation_id)
+    return correlation_id
 
 
 async def correlation_id_middleware(request: Request, call_next):
-    """Check for correlation ID in the request headers.
+    """Ensure request header has a valid correlation ID.
 
-    If the correlation ID doesn't exist or isn't valid, generate a new one.
-    Set the header value if needed.
     Set the correlation ID ContextVar before passing on the request.
+
+    Raises:
+        InvalidCorrelationIdError: If a correlation ID exists and is invalid.
     """
     correlation_id = request.headers.get(CORRELATION_ID_HEADER_NAME, "")
 
-    # Generate new id if needed
-    if not is_valid_correlation_id(correlation_id):
-        correlation_id = str(uuid4())
-        log.warning("Generated new correlation id: %s", correlation_id)
+    # If a correlation ID exists, validate it. If not, generate a new one.
+    validated_correlation_id = get_validated_correlation_id(correlation_id)
+    if validate_correlation_id != correlation_id:
+        set_header_correlation_id(request, validated_correlation_id)
 
-        # Attach correlation ID to request state
-        headers = dict(request.scope["headers"])
-        headers[CORRELATION_ID_HEADER_NAME] = correlation_id
-        request.scope["headers"] = [(k, v) for k, v in headers.items()]
-
-    # Set the correlation ID in the context variable
-    async with set_correlation_id(correlation_id):
+    # Set the correlation ID ContextVar
+    async with set_correlation_id(validated_correlation_id):
         response = await call_next(request)
         return response
