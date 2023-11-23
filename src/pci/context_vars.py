@@ -17,9 +17,12 @@
 
 These should be moved into a library like GHGA-Service-Commons.
 """
+import logging
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import Any
+
+log = logging.getLogger()
 
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
@@ -36,7 +39,10 @@ class MissingCorrelationIdError(RuntimeError):
 
 @asynccontextmanager
 async def set_context_var(context_var: ContextVar, value: Any):
-    """An async context manager to simplify the use of ContextVars"""
+    """An async context manager to simplify the use of ContextVars.
+
+    The value will be reset upon exiting the context.
+    """
     token = context_var.set(value)
     yield
     context_var.reset(token)
@@ -44,7 +50,8 @@ async def set_context_var(context_var: ContextVar, value: Any):
 
 @asynccontextmanager
 async def set_correlation_id(correlation_id: str):
-    """Set the correlation ID."""
+    """Set the correlation ID for the life of the context."""
+    log.info("Set context correlation ID to %s", correlation_id)
     async with set_context_var(correlation_id_var, correlation_id):
         yield
 
