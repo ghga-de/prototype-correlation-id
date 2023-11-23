@@ -30,6 +30,10 @@ __all__ = [
 ]
 
 
+class MissingCorrelationIdError(RuntimeError):
+    """Raised when the correlation ID ContextVar is unexpectedly not set."""
+
+
 @asynccontextmanager
 async def set_context_var(context_var: ContextVar, value: Any):
     """An async context manager to simplify the use of ContextVars"""
@@ -48,6 +52,11 @@ async def set_correlation_id(correlation_id: str):
 def get_correlation_id() -> str:
     """Get the correlation ID.
 
-    Having this as a separate function removes the need to work with the ContextVar directly.
+    This should only be called when the correlation ID ContextVar is expected to be set.
+
+    Raises:
+        MissingCorrelationIdError: when the correlation ID ContextVar is not set.
     """
-    return correlation_id_var.get()
+    if not (correlation_id := correlation_id_var.get()):
+        raise MissingCorrelationIdError()
+    return correlation_id
