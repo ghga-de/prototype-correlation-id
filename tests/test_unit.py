@@ -32,6 +32,17 @@ from pci.context_vars import (
 from tests.fixtures.utils import replacement_middleware
 
 
+def dummy_request() -> Request:
+    """Return a dummy request object to directly call middleware functions."""
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "headers": [],
+    }
+    return Request(scope=scope)
+
+
 @pytest.mark.asyncio
 async def test_correlation_id_validation():
     """Ensure an error is raised when correlation ID validation fails."""
@@ -49,13 +60,7 @@ async def test_getting_empty_correlation_id():
 
 def test_header_update_function():
     """Verify that the header update function works."""
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/",
-        "headers": [(b"host", b"testserver")],
-    }
-    request = Request(scope=scope)
+    request = dummy_request()
     set_header_correlation_id(request, "id123")
     assert request.headers.get(CORRELATION_ID_HEADER_NAME) == "id123"
 
@@ -63,13 +68,7 @@ def test_header_update_function():
 @pytest.mark.asyncio
 async def test_middleware_wrapper_header_update():
     """Make sure that the test/replacement middleware calls the header update function."""
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/",
-        "headers": [(b"host", b"testserver")],
-    }
-    request = Request(scope=scope)
+    request = dummy_request()
 
     # An error should get raised if it keeps this id.
     with pytest.raises(InvalidCorrelationIdError):
