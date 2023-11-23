@@ -15,6 +15,7 @@
 """Tests for the correlation ID."""
 import asyncio
 import os
+import random
 from functools import partial
 from tempfile import TemporaryDirectory
 
@@ -27,6 +28,7 @@ from pci.adapters.inbound.fastapi_.utils import (
     correlation_id_middleware,
     is_valid_correlation_id,
 )
+from pci.context_vars import correlation_id_var, set_correlation_id
 from pci.models import NonStagedFileRequested
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
 
@@ -43,6 +45,37 @@ async def replacement_middleware(request: Request, call_next, replacement_id: st
 
     # pass the request on to the real middleware function
     return await correlation_id_middleware(request, call_next)
+
+
+async def set_id_sleep_resume(correlation_id: str, use_context_manager: bool):
+    """An async task to set the correlation ID ContextVar and yield control temporarily
+    back to the event loop before resuming.
+    """
+    if use_context_manager:
+        async with set_correlation_id(correlation_id):
+            await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
+            # Check if the correlation ID is still the same
+            assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
+    else:
+        correlation_id_var.set(correlation_id)  # Set correlation ID for task
+        await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
+        # Check if the correlation ID is still the same
+        assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
+
+
+@pytest.mark.asyncio
+async def test_correlation_id_isolation():
+    """Make sure correlation IDs are isolated to the respective async task and that
+    there's no interference from task switching.
+
+    Test with a sleep time of 0-2s and a random combination of context
+    manager/directly setting ContextVar.
+    """
+    tasks = [
+        set_id_sleep_resume(f"test_{n}", random.choice((True, False)))
+        for n in range(100)
+    ]
+    await asyncio.gather(*tasks)
 
 
 @pytest.mark.parametrize("replacement_id", ["", "invalid"])
