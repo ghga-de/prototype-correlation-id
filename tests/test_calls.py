@@ -15,106 +15,81 @@
 """Tests for the correlation ID."""
 import asyncio
 import os
-import random
 from functools import partial
 from tempfile import TemporaryDirectory
 
 import pytest
-from fastapi import Request
+from ghga_service_commons.api.testing import AsyncTestClient
 from hexkit.providers.akafka.testutils import KafkaFixture, kafka_fixture  # noqa: F401
 
 from pci.adapters.inbound.fastapi_.utils import (
-    CORRELATION_ID_HEADER_NAME,
-    correlation_id_middleware,
-    is_valid_correlation_id,
+    InvalidCorrelationIdError,
+    validate_correlation_id,
 )
-from pci.context_vars import correlation_id_var, set_correlation_id
+from pci.inject import prepare_rest_app
 from pci.models import NonStagedFileRequested
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
+from tests.fixtures.utils import PATCH_LOCATION, replacement_middleware
 
 
-async def replacement_middleware(request: Request, call_next, replacement_id: str):
-    """Wrapper patch for `correlation_id_middleware`."""
-    # Modify the correlation ID for testing purposes
-    headers = dict(request.scope["headers"])
-    headers[CORRELATION_ID_HEADER_NAME] = ""
-    request.scope["headers"] = [(k, v) for k, v in headers.items()]
-
-    # make sure the value is set
-    assert request.headers.get(CORRELATION_ID_HEADER_NAME) == replacement_id
-
-    # pass the request on to the real middleware function
-    return await correlation_id_middleware(request, call_next)
-
-
-async def set_id_sleep_resume(correlation_id: str, use_context_manager: bool):
-    """An async task to set the correlation ID ContextVar and yield control temporarily
-    back to the event loop before resuming.
-    """
-    if use_context_manager:
-        async with set_correlation_id(correlation_id):
-            await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
-            # Check if the correlation ID is still the same
-            assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
-    else:
-        correlation_id_var.set(correlation_id)  # Set correlation ID for task
-        await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
-        # Check if the correlation ID is still the same
-        assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
-
-
-@pytest.mark.asyncio
-async def test_correlation_id_isolation():
-    """Make sure correlation IDs are isolated to the respective async task and that
-    there's no interference from task switching.
-
-    Test with a sleep time of 0-2s and a random combination of context
-    manager/directly setting ContextVar.
-    """
-    tasks = [
-        set_id_sleep_resume(f"test_{n}", random.choice((True, False)))
-        for n in range(100)
-    ]
-    await asyncio.gather(*tasks)
-
-
-@pytest.mark.parametrize("replacement_id", ["", "invalid"])
 @pytest.mark.asyncio
 async def test_rest_call_without_correlation_id(
-    joint_fixture: JointFixture,  # noqa: F811
-    monkeypatch: pytest.MonkeyPatch,
-    replacement_id: str,
+    joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch  # noqa: F811
 ):
     """Make sure a new ID is generated if a REST api request is received with a missing
-    or invalid correlation ID.
+    correlation ID.
+
+    Have to create a new rest client since monkeypatching won't affect the dispatch
+    function of already-instantiated middleware.
     """
     monkeypatch.setattr(
-        "pci.adapters.inbound.fastapi_.utils.correlation_id_middleware",
-        partial(replacement_middleware, replacement_id=replacement_id),
+        PATCH_LOCATION,
+        partial(replacement_middleware, replacement_id=""),
     )
+    async with prepare_rest_app(
+        config=joint_fixture.config,
+        data_respository_override=joint_fixture.data_repository,
+    ) as app:
+        patched_rest_client = AsyncTestClient(app)
+        response = await patched_rest_client.get("/test.txt")
+        body = response.json()
+        assert body["correlation_id"] != ""
+        validate_correlation_id(body["correlation_id"])
 
-    response = await joint_fixture.rest_client.get("/test.txt")
-    body = response.json()
-    assert body["correlation_id"] != replacement_id
-    assert is_valid_correlation_id(body["correlation_id"])
 
-
-@pytest.mark.parametrize("replacement_id", ["", "invalid"])
 @pytest.mark.asyncio
-async def test_event_without_correlation_id(
-    joint_fixture: JointFixture,  # noqa: F811
-    replacement_id: str,
+async def test_rest_call_invalid_correlation_id(
+    joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch  # noqa: F811
 ):
-    """Make sure a new ID is generated if an event is received with a missing
-    or invalid correlation ID.
+    """Ensure an error is raised if a REST api request is received with an invalid
+    correlation ID.
+
+    Have to create a new rest client since monkeypatching won't affect the dispatch
+    function of already-instantiated middleware.
     """
+    monkeypatch.setattr(
+        PATCH_LOCATION,
+        partial(replacement_middleware, replacement_id="BAD_ID"),
+    )
+    async with prepare_rest_app(
+        config=joint_fixture.config,
+        data_respository_override=joint_fixture.data_repository,
+    ) as app:
+        patched_rest_client = AsyncTestClient(app)
+        with pytest.raises(InvalidCorrelationIdError):
+            await patched_rest_client.get("/test.txt")
+
+
+@pytest.mark.asyncio
+async def test_event_without_correlation_id(joint_fixture: JointFixture):  # noqa: F811
+    """Ensure a new ID is generated if an event is received without a correlation ID."""
     event = NonStagedFileRequested(
         file_id="test",
         target_bucket_id="test",
         target_object_id="test",
         s3_endpoint_alias="test",
         decrypted_sha256="123",
-        correlation_id=replacement_id,
+        correlation_id="",
     )
 
     # publish event with bad id
@@ -131,8 +106,8 @@ async def test_event_without_correlation_id(
         assert os.path.exists(filepath)
         with open(filepath, encoding="utf-8") as file:
             correlation_id = file.readlines()[-1]
-            assert correlation_id != replacement_id
-            assert is_valid_correlation_id(correlation_id)
+            assert correlation_id != ""
+            validate_correlation_id(correlation_id)
 
 
 @pytest.mark.asyncio
