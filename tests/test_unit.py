@@ -29,7 +29,6 @@ from pci.context_vars import (
     get_correlation_id,
     set_correlation_id,
 )
-from tests.fixtures.utils import replacement_middleware
 
 
 def dummy_request() -> Request:
@@ -63,13 +62,3 @@ def test_header_update_function():
     request = dummy_request()
     set_header_correlation_id(request, "id123")
     assert request.headers.get(CORRELATION_ID_HEADER_NAME) == "id123"
-
-
-@pytest.mark.asyncio
-async def test_middleware_wrapper_header_update():
-    """Make sure that the test/replacement middleware calls the header update function."""
-    request = dummy_request()
-
-    # An error should get raised if it keeps this id.
-    with pytest.raises(InvalidCorrelationIdError):
-        await replacement_middleware(request, lambda x: x, "BAD_ID")

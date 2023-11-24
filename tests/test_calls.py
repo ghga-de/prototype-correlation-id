@@ -15,69 +15,47 @@
 """Tests for the correlation ID."""
 import asyncio
 import os
-from functools import partial
 from tempfile import TemporaryDirectory
 
 import pytest
-from ghga_service_commons.api.testing import AsyncTestClient
 from hexkit.providers.akafka.testutils import KafkaFixture, kafka_fixture  # noqa: F401
 
 from pci.adapters.inbound.fastapi_.utils import (
+    CORRELATION_ID_HEADER_NAME,
     InvalidCorrelationIdError,
     validate_correlation_id,
 )
-from pci.inject import prepare_rest_app
 from pci.models import NonStagedFileRequested
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
-from tests.fixtures.utils import PATCH_LOCATION, replacement_middleware
 
 
 @pytest.mark.asyncio
 async def test_rest_call_without_correlation_id(
-    joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    joint_fixture: JointFixture,  # noqa: F811
 ):
     """Make sure a new ID is generated if a REST api request is received with a missing
     correlation ID.
-
-    Have to create a new rest client since monkeypatching won't affect the dispatch
-    function of already-instantiated middleware.
     """
-    monkeypatch.setattr(
-        PATCH_LOCATION,
-        partial(replacement_middleware, replacement_id=""),
+    response = await joint_fixture.rest_client.get(
+        "/test.txt", headers={CORRELATION_ID_HEADER_NAME: ""}
     )
-    async with prepare_rest_app(
-        config=joint_fixture.config,
-        data_respository_override=joint_fixture.data_repository,
-    ) as app:
-        patched_rest_client = AsyncTestClient(app)
-        response = await patched_rest_client.get("/test.txt")
-        body = response.json()
-        assert body["correlation_id"] != ""
-        validate_correlation_id(body["correlation_id"])
+    body = response.json()
+    assert body["correlation_id"] != ""
+    validate_correlation_id(body["correlation_id"])
 
 
 @pytest.mark.asyncio
 async def test_rest_call_invalid_correlation_id(
-    joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    joint_fixture: JointFixture,  # noqa: F811
 ):
     """Ensure an error is raised if a REST api request is received with an invalid
     correlation ID.
-
-    Have to create a new rest client since monkeypatching won't affect the dispatch
-    function of already-instantiated middleware.
     """
-    monkeypatch.setattr(
-        PATCH_LOCATION,
-        partial(replacement_middleware, replacement_id="BAD_ID"),
-    )
-    async with prepare_rest_app(
-        config=joint_fixture.config,
-        data_respository_override=joint_fixture.data_repository,
-    ) as app:
-        patched_rest_client = AsyncTestClient(app)
-        with pytest.raises(InvalidCorrelationIdError):
-            await patched_rest_client.get("/test.txt")
+    with pytest.raises(InvalidCorrelationIdError):
+        await joint_fixture.rest_client.get(
+            "/test.txt",
+            headers={CORRELATION_ID_HEADER_NAME: "BAD_ID"},
+        )
 
 
 @pytest.mark.asyncio
