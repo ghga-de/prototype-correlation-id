@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 # please adapt to package name
-name = "my_microservice"
+name = "pci"
 version = "0.1.0"
-description = "My-Microservice - a short description"
+description = "A prototype showcasing correlation ID propagation."
 readme = "README.md"
 authors = [
     { name = "German Human Genome Phenome Archive (GHGA)", email = "contact@ghga.de" },
@@ -26,18 +26,18 @@ classifiers = [
 ]
 dependencies = [
     "typer >= 0.7.0",
-    "ghga-service-commons[api] >= 0.7.0",
-    "ghga-event-schemas >= 0.13.0",
-    "hexkit[akafka,s3,mongodb] >= 0.10.0"
+    "ghga-service-commons[api] >= 1.0.0",
+    "ghga-event-schemas >= 1.0.0",
+    "hexkit[akafka,s3,mongodb] >= 1.0.0"
 ]
 
 [project.urls]
 # please adapt to package name
-Repository = "https://github.com/ghga-de/my-microservice"
+Repository = "https://github.com/ghga-de/prototype-correlation-id"
 
 [project.scripts]
 # please adapt to package name
-my-microservice = "my_microservice.__main__:run"
+pci = "pci.__main__:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

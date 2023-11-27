@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""Contains a class establishing the data repository port."""
+from abc import ABC, abstractmethod
 
-"""Used to define the location of the main FastAPI app object."""
 
-from fastapi import FastAPI
+class DataRepositoryPort(ABC):
+    """Basic port"""
 
-from pci.adapters.inbound.fastapi_.routes import router
-
-app = FastAPI()
-app.include_router(router)
+    @abstractmethod
+    async def handle_request(self, file_id: str) -> str:
+        """Handle a request"""

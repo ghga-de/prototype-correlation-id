@@ -13,12 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""Contains an event model used to simulate correlation ID in header."""
+from ghga_event_schemas.pydantic_ import NonStagedFileRequested as Event
+from pydantic import Field
 
-"""Used to define the location of the main FastAPI app object."""
 
-from fastapi import FastAPI
+class NonStagedFileRequested(Event):
+    """A copy of NonStagedFileRequested with a `correlation_id` field added.
 
-from pci.adapters.inbound.fastapi_.routes import router
+    The reason this is used is that the correlation ID would actually be stored in
+    the header field of a Kafka event, and accessing event headers is not currently
+    supported by hexkit.
+    """
 
-app = FastAPI()
-app.include_router(router)
+    correlation_id: str = Field(
+        ...,
+        description=(
+            "A unique ID used to track the flow of events related to a single request."
+        ),
+    )

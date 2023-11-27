@@ -5,10 +5,19 @@ cors_allowed_headers: null
 cors_allowed_methods: null
 cors_allowed_origins: null
 docs_url: /docs
+file_events_topic: file_events
 host: 127.0.0.1
-language: Greek
+kafka_security_protocol: PLAINTEXT
+kafka_servers:
+- kafka:9092
+kafka_ssl_cafile: ''
+kafka_ssl_certfile: ''
+kafka_ssl_keyfile: ''
+kafka_ssl_password: ''
 log_level: info
+nonstaged_file_requested_type: non_staged_file_requested
 openapi_url: /openapi.json
 port: 8080
-service_name: my_microservice
+service_instance_id: '001'
+service_name: pci
 workers: 1

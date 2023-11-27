@@ -1,10 +1,10 @@
 
-[![tests](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/ghga-de/microservice-repository-template/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/microservice-repository-template?branch=main)
+[![tests](https://github.com/ghga-de/prototype-correlation-id/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/prototype-correlation-id/actions/workflows/tests.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/ghga-de/prototype-correlation-id/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/prototype-correlation-id?branch=main)
 
-# Microservice Repository Template
+# Prototype Correlation Id
 
-My-Microservice - a short description
+A prototype showcasing correlation ID propagation.
 
 ## Description
 
@@ -40,15 +40,15 @@ by providing an overview of the feature of the package.
 
 We recommend using the provided Docker container.
 
-A pre-build version is available at [docker hub](https://hub.docker.com/repository/docker/ghga/microservice-repository-template):
+A pre-build version is available at [docker hub](https://hub.docker.com/repository/docker/ghga/prototype-correlation-id):
 ```bash
-docker pull ghga/microservice-repository-template:0.1.0
+docker pull ghga/prototype-correlation-id:0.1.0
 ```
 
 Or you can build the container yourself from the [`./Dockerfile`](./Dockerfile):
 ```bash
 # Execute in the repo's root dir:
-docker build -t ghga/microservice-repository-template:0.1.0 .
+docker build -t ghga/prototype-correlation-id:0.1.0 .
 ```
 
 For production-ready deployment, we recommend using Kubernetes, however,
@@ -56,7 +56,7 @@ for simple use cases, you could execute the service using docker
 on a single server:
 ```bash
 # The entrypoint is preconfigured:
-docker run -p 8080:8080 ghga/microservice-repository-template:0.1.0 --help
+docker run -p 8080:8080 ghga/prototype-correlation-id:0.1.0 --help
 ```
 
 If you prefer not to use containers, you may install the service from source:
@@ -65,7 +65,7 @@ If you prefer not to use containers, you may install the service from source:
 pip install .
 
 # To run the service:
-my_microservice --help
+pci --help
 ```
 
 ## Configuration
@@ -73,6 +73,46 @@ my_microservice --help
 ### Parameters
 
 The service requires the following configuration parameters:
+- **`file_events_topic`** *(string)*: Name of the topic.
+
+- **`nonstaged_file_requested_type`** *(string)*: Name of the event.
+
+- **`service_name`** *(string)*: Default: `"pci"`.
+
+- **`service_instance_id`** *(string)*: A string that uniquely identifies this instance across all instances of this service. A globally unique Kafka client ID will be created by concatenating the service_name and the service_instance_id.
+
+
+  Examples:
+
+  ```json
+  "germany-bw-instance-001"
+  ```
+
+
+- **`kafka_servers`** *(array)*: A list of connection strings to connect to Kafka bootstrap servers.
+
+  - **Items** *(string)*
+
+
+  Examples:
+
+  ```json
+  [
+      "localhost:9092"
+  ]
+  ```
+
+
+- **`kafka_security_protocol`** *(string)*: Protocol used to communicate with brokers. Valid values are: PLAINTEXT, SSL. Must be one of: `["PLAINTEXT", "SSL"]`. Default: `"PLAINTEXT"`.
+
+- **`kafka_ssl_cafile`** *(string)*: Certificate Authority file path containing certificates used to sign broker certificates. If a CA not specified, the default system CA will be used if found by OpenSSL. Default: `""`.
+
+- **`kafka_ssl_certfile`** *(string)*: Optional filename of client certificate, as well as any CA certificates needed to establish the certificate's authenticity. Default: `""`.
+
+- **`kafka_ssl_keyfile`** *(string)*: Optional filename containing the client private key. Default: `""`.
+
+- **`kafka_ssl_password`** *(string)*: Optional password to be used for the client private key. Default: `""`.
+
 - **`host`** *(string)*: IP of the host. Default: `"127.0.0.1"`.
 
 - **`port`** *(integer)*: Port to expose the server on the specified host. Default: `8080`.
@@ -167,18 +207,14 @@ The service requires the following configuration parameters:
   ```
 
 
-- **`service_name`** *(string)*: Default: `"my_microservice"`.
-
-- **`language`** *(string)*: Must be one of: `["Greek", "Croatian", "French", "German"]`. Default: `"Croatian"`.
-
 
 ### Usage:
 
 A template YAML for configurating the service can be found at
 [`./example-config.yaml`](./example-config.yaml).
-Please adapt it, rename it to `.my_microservice.yaml`, and place it into one of the following locations:
-- in the current working directory were you are execute the service (on unix: `./.my_microservice.yaml`)
-- in your home directory (on unix: `~/.my_microservice.yaml`)
+Please adapt it, rename it to `.pci.yaml`, and place it into one of the following locations:
+- in the current working directory were you are execute the service (on unix: `./.pci.yaml`)
+- in your home directory (on unix: `~/.pci.yaml`)
 
 The config yaml will be automatically parsed by the service.
 
@@ -187,8 +223,8 @@ The config yaml will be automatically parsed by the service.
 All parameters mentioned in the [`./example-config.yaml`](./example-config.yaml)
 could also be set using environment variables or file secrets.
 
-For naming the environment variables, just prefix the parameter name with `my_microservice_`,
-e.g. for the `host` set an environment variable named `my_microservice_host`
+For naming the environment variables, just prefix the parameter name with `pci_`,
+e.g. for the `host` set an environment variable named `pci_host`
 (you may use both upper or lower cases, however, it is standard to define all env
 variables in upper cases).
 

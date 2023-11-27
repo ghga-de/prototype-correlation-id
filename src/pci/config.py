@@ -12,13 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-"""Used to define the location of the main FastAPI app object."""
+"""Config Parameter Modeling and Parsing."""
 
-from fastapi import FastAPI
+from ghga_service_commons.api import ApiConfigBase
+from hexkit.config import config_from_yaml
+from hexkit.providers.akafka import KafkaConfig
 
-from pci.adapters.inbound.fastapi_.routes import router
+from pci.adapters.inbound.event_sub import EventSubTranslatorConfig
+from pci.adapters.outbound.event_pub import EventPubTranslatorConfig
 
-app = FastAPI()
-app.include_router(router)
+
+@config_from_yaml(prefix="pci")
+class Config(
+    ApiConfigBase,
+    KafkaConfig,
+    EventPubTranslatorConfig,
+    EventSubTranslatorConfig,
+):
+    """Config parameters and their defaults."""
+
+    service_name: str = "pci"
+
+
+CONFIG = Config()  # type: ignore [call-arg]
